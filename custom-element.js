@@ -609,29 +609,34 @@ async function compileTemplate(template,url) {
 }
 	
 	const currentScript = document.currentScript,
+		scripturl = new URL(currentScript.getAttribute("src")),
+		urlbase = `${scripturl.protocol}//${scripturl.host}`,
 		templates = currentScript.getAttribute("templates");
 	if(!templates) {
 		return;
 	}
-	templates.split(",").forEach((template) => {
-		if(template.startsWith("http")||template.startsWith(".")) {
-			window.promisedElements.push(new Promise(async (resolve) => {
-				await require("https://www.unpkg.com/relaxed-json@1.0.3/relaxed-json.js");
-				const response = await fetch(template),
-					html = await response.text(),
-					dom =new DOMParser().parseFromString(html,"text/html"),
-					tagname = dom.head.firstElementChild.getAttribute("tagname")||dom.head.firstElementChild.id;
-				compileTemplate(dom.head.firstElementChild,template);
-				resolve(tagname);
-			}));
-		} else {
-			window.promisedElements.push(new Promise(async (resolve) => {
-				await require("https://www.unpkg.com/relaxed-json@1.0.3/relaxed-json.js");
-				const el = document.querySelector(`[tagname="${template}"]`);
-				compileTemplate(el);
-				resolve(el.getAttribute("tagname")||el.id);
-			}));
-		}
-	})
-
+	(async () => {
+		await require("https://www.unpkg.com/relaxed-json@1.0.3/relaxed-json.js");
+		templates.split(",").forEach((template) => {
+			if(template.startsWith("http")||template.startsWith("/")||template.endsWith(".html")||template.endsWith("/")) {
+				if(!template.startsWith("http")) {
+					template = template.startsWith("/") ? urlbase + template : urlbase + "/" + template;
+				}
+				window.promisedElements.push(new Promise(async (resolve) => {
+					const response = await fetch(template),
+						html = await response.text(),
+						dom =new DOMParser().parseFromString(html,"text/html"),
+						tagname = dom.head.firstElementChild.getAttribute("tagname")||dom.head.firstElementChild.id;
+					compileTemplate(dom.head.firstElementChild,template);
+					resolve(tagname);
+				}));
+			} else {
+				window.promisedElements.push(new Promise(async (resolve) => {
+					const el = document.querySelector(`[tagname="${template}"]`);
+					compileTemplate(el);
+					resolve(el.getAttribute("tagname")||el.id);
+				}));
+			}
+		})
+	})();
 })();
